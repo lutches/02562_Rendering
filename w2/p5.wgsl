@@ -274,6 +274,7 @@ fn shade(r: ptr<function, Ray>, hit: ptr<function,HitInfo>) -> vec3f
         case 2 {return mirror(r,hit);}
         case 3 {return refrection(r,hit);}
         case 4 {return phong(r,hit);}
+        case 5{ return phong(r,hit) + refrection(r,hit);}
         case default { return (*hit).ambientColor + (*hit).diffuseColor; }
     }
 }

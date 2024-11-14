@@ -14,7 +14,7 @@ async function main() {
 
 
     const wgsl = device.createShaderModule({
-        code: await (await fetch("./w2p4.wgsl")).text()
+        code: await (await fetch("./p5.wgsl")).text()
     });
     const uniformBuffer = device.createBuffer({
         size: 16,
@@ -56,7 +56,7 @@ async function main() {
     // Create a render pass in a command buffer and submit it
     const aspect = canvas.width / canvas.height;
     var cam_const = 1.0;
-    const sphereMaterial = 4.0;
+    const sphereMaterial = 5.0;
     const material = 1;
     var uniforms = new Float32Array([aspect, cam_const, sphereMaterial, material]);
     device.queue.writeBuffer(uniformBuffer, 0, uniforms);

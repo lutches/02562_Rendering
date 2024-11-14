@@ -14,7 +14,7 @@ async function main() {
 
 
     const wgsl = device.createShaderModule({
-        code: await (await fetch("./w2p1.wgsl")).text()
+        code: await (await fetch("./p1.wgsl")).text()
     });
     const uniformBuffer = device.createBuffer({
         size: 12,
