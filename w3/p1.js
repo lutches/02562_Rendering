@@ -90,6 +90,7 @@ async function main() {
 
     const texture = await load_texture(device, "../textures/grass.jpg");
 
+    console.log(pipeline.getBindGroupLayout(0));
     const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
         entries: [

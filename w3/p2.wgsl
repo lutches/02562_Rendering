@@ -1,26 +1,14 @@
-struct Uniforms {
+struct Uniforms_f {
     aspect: f32,
     cam_const: f32,
     sphere_material: f32,
-    material: f32
+    material: f32,
 };
 
-@group(0) @binding(0) var<uniform> uniforms: Uniforms;
-
-struct VSOut {
-    @builtin(position) position: vec4f,
-    @location(0) coords: vec2f,
+struct Uniforms_ui {
+    use_repeat: u32,
+    use_linear: u32,
 };
-
-@vertex
-fn main_vs(@builtin(vertex_index) VertexIndex: u32) -> VSOut 
-{
-    const pos = array<vec2f, 4>(vec2f(-1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(1.0, -1.0));
-    var vsOut: VSOut;
-    vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0);
-    vsOut.coords = pos[VertexIndex];
-    return vsOut;
-}
 
 struct Ray {
     origin: vec3f,
@@ -46,11 +34,13 @@ struct Light {
     dist: f32
 };
 
-const l_pos = vec3f(0,1,0);
-const sphereIR = 1.5;
-const sphereShininess = 42;
-const specualarReflectance = 0.1;
-const Pi = 3.1415;
+struct VSOut {
+    @builtin(position) position: vec4f,
+    @location(0) coords: vec2f,
+};
+
+// Functions 
+
 
 fn sample_point_light(pos: vec3f) -> Light
 {
@@ -86,7 +76,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
     {
         (*r).tmax = min((*hit).dist, (*r).tmax);
         (*hit).has_hit = true;
-        (*hit).shader = uniforms.material;
+        (*hit).shader = uniforms_f.material;
         if ((*r).tmax == (*hit).dist) {
             (*hit).diffuseColor = planeRGB*0.9;
             (*hit).ambientColor = planeRGB*0.1;
@@ -96,7 +86,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
     {
         (*r).tmax = min((*hit).dist, (*r).tmax);
         (*hit).has_hit = true;
-        (*hit).shader = uniforms.material;
+        (*hit).shader = uniforms_f.material;
         if ((*r).tmax == (*hit).dist) 
         {
             (*hit).normal = normalize(cross(v1 - v0, v2 - v0));
@@ -107,7 +97,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
     if (intersect_sphere(*r, hit, sphereposition, sphereRadius)) {
             (*r).tmax = min((*hit).dist, (*r).tmax);
             (*hit).has_hit = true;
-            (*hit).shader = uniforms.sphere_material;
+            (*hit).shader = uniforms_f.sphere_material;
             if ((*r).tmax == (*hit).dist) {
                 (*hit).diffuseColor = sphereRGB*0.9;
                 (*hit).ambientColor = sphereRGB*0.1;
@@ -274,6 +264,7 @@ fn shade(r: ptr<function, Ray>, hit: ptr<function,HitInfo>) -> vec3f
         case 2 {return mirror(r,hit);}
         case 3 {return refrection(r,hit);}
         case 4 {return phong(r,hit);}
+        case 5{ return phong(r,hit) + refrection(r,hit);}
         case default { return (*hit).ambientColor + (*hit).diffuseColor; }
     }
 }
@@ -290,15 +281,78 @@ fn get_camera_ray(ipcoords: vec2f) -> Ray {
     const b1 = normalize(cross(v,up));
     const b2 = cross(b1,v);
     const origin = eye;
-    let direction = normalize(ipcoords.x*b1+ipcoords.y*b2+v*uniforms.cam_const);
+    let direction = normalize(ipcoords.x*b1+ipcoords.y*b2+v*uniforms_f.cam_const);
     
     return Ray(origin, direction, 0.0, 1.0e32);
 }
+
+fn texture_nearest(texture: texture_2d<f32>, texcoords: vec2f, repeat: bool) -> vec3f 
+{       
+    let res = textureDimensions(texture);
+    let st = select(clamp(texcoords, vec2f(0), vec2f(1)), texcoords - floor(texcoords), repeat);
+    let ab = st*vec2f(res);       
+    let UV = vec2u(ab + 0.5) % res;      
+    let texcolor = textureLoad(texture, UV, 0);      
+    return texcolor.rgb;     
+}    
+fn texture_linear(texture: texture_2d<f32>, texcoords: vec2f, repeat: bool) -> vec3f 
+{       
+    let res = textureDimensions(texture);
+    let st = select(clamp(texcoords, vec2f(0), vec2f(1)), texcoords - floor(texcoords), repeat);
+    let ab = st * vec2f(res) - 0.5;
+    let iuv = vec2i(floor(ab));
+    let fuv = fract(ab);
+    
+    let uv00 = (iuv + vec2i(0, 0)) % vec2i(res);
+    let uv10 = (iuv + vec2i(1, 0)) % vec2i(res);
+    let uv01 = (iuv + vec2i(0, 1)) % vec2i(res);
+    let uv11 = (iuv + vec2i(1, 1)) % vec2i(res);
+    
+    let c00 = textureLoad(texture, uv00, 0).rgb;
+    let c10 = textureLoad(texture, uv10, 0).rgb;
+    let c01 = textureLoad(texture, uv01, 0).rgb;
+    let c11 = textureLoad(texture, uv11, 0).rgb;
+    
+    let texcolor = mix(mix(c00, c10, fuv.x), mix(c01, c11, fuv.x), fuv.y);
+
+    return texcolor.rgb;     
+}
+// Bindings
+
+@group(0) @binding(0) var<uniform> uniforms_f: Uniforms_f;
+@group(0) @binding(1) var<uniform> uniforms_ui: Uniforms_ui;
+@group(0) @binding(2) var my_texture: texture_2d<f32>;
+
+// consts
+
+const l_pos = vec3f(0,1,0);
+const sphereIR = 1.5;
+const sphereShininess = 42;
+const specualarReflectance = 0.1;
+const Pi = 3.1415;
+
+// fragement and vertex shaders
+
+/*
+@fragment
+fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f 
+{
+    let uv = vec2f(coords.x * uniforms_f.aspect * 0.5, coords.y * 0.5);
+    let use_repeat = uniforms_ui.use_repeat != 0;
+    let use_linear = uniforms_ui.use_linear != 0;
+    let color = select(
+        texture_nearest(my_texture, uv, use_repeat),
+        texture_linear(my_texture, uv, use_repeat),
+        use_linear
+    );
+    return vec4f(color, 1.0);
+}
+*/
 @fragment
 fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
     const bgcolor = vec4f(0.1, 0.3, 0.6, 1.0);
     const max_depth = 10;
-    let uv = vec2f(coords.x * uniforms.aspect * 0.5f, coords.y * 0.5f);
+    let uv = vec2f(coords.x * uniforms_f.aspect * 0.5f, coords.y * 0.5f);
     var r = get_camera_ray(uv);
     var result = vec3f(0.0);
     var hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0),0, 1);
@@ -316,4 +370,16 @@ fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
     
     return vec4f(pow(result, vec3f(1.0)), bgcolor.a);
 } 
+
+
+ @vertex
+    fn main_vs(@builtin(vertex_index) VertexIndex : u32) -> VSOut
+    {
+        const pos = array<vec2f, 4>(vec2f(-1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(1.0, -1.0));
+        var vsOut: VSOut;
+        vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0);
+        vsOut.coords = pos[VertexIndex];
+        return vsOut;
+    }
+
     

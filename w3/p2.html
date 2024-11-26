@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <link rel="stylesheet" type="text/css" href="../styles.css" />
-  <title>W2P4</title>
+  <h1>W2P4</h1>
+  <link rel="stylesheet" type="text/css" href="../styles.css">
 </head>
 <body>
 <canvas id="webgpu-canvas">
@@ -18,13 +18,19 @@
         <option value="1">Lambertian</option>
         <option value="2">Mirror</option>
         <option value="3">refraction</option>
-        <option value="4" selected>Phong</option>
+        <option value="4">Phong</option>
+        <option value="5" selected>Glossy</option>
       </select>
       <select id="materialMenu">
         <option value="0">Base Color</option>
         <option value="1" selected>Lambertian</option>
       </select>
+      <select id="imageStyle">
+        <option value="0">Clamp To Edge</option>
+        <option value="1" selected>Repeat</option>
+      </select>
     </menu>
   </div>
 </body>
 </html>
+ 
