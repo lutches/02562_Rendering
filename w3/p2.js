@@ -71,13 +71,14 @@ async function main() {
         size: uniforms.byteLength,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    const uniformBuffer_ui = device.createBuffer({
-        size: uniforms_ui.byteLength, // number of bytes
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    const my_sampler = device.createSampler({
+        addressModeU: "repeat",
+        addressModeV: "repeat",
+        minFilter: "nearest",
+        magFilter: "nearest",
     });
 
     device.queue.writeBuffer(uniformBuffer, 0, uniforms);
-    device.queue.writeBuffer(uniformBuffer_ui, 0, uniforms_ui);
 
     const texture = await load_texture(device, "../textures/grass.jpg");
 
@@ -85,7 +86,7 @@ async function main() {
         layout: pipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: { buffer: uniformBuffer } },
-            { binding: 1, resource: { buffer: uniformBuffer_ui } },
+            { binding: 1, resource: my_sampler },
             { binding: 2, resource: texture.createView() }
         ],
     });
@@ -101,7 +102,6 @@ async function main() {
     });
 
     addEventListener("wheel", function (ev) {
-        ev.preventDefault();
         let zoom = ev.deltaY > 0 ? 0.95 : 1.05;
         cam_const *= zoom;
         animate()

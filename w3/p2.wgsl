@@ -25,7 +25,9 @@ struct HitInfo {
     diffuseColor: vec3f,
     ambientColor: vec3f,
     shader: f32,
-    IoR: f32
+    IoR: f32,
+    texcoords: vec2f,
+    use_texture: bool
 };
 
 struct Light {
@@ -46,11 +48,18 @@ fn sample_point_light(pos: vec3f) -> Light
 {
     var l = l_pos - pos;
     var L_i = vec3f(Pi)/ dot(l, l);
-
+ 
     let w_i = normalize(l);
     let dist = length(l);
     return Light(L_i, w_i, dist);
 };
+
+struct Onb
+{
+    normal: vec3f,
+    tangent: vec3f,
+    binormal: vec3f,
+}
 
 fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
     // Define scene data as constants.
@@ -59,6 +68,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
     const planePosition = vec3f(0);
     const planeNormal = vec3f(0,1,0);
     const planeRGB = vec3f(0.1,0.7,0.0);
+    const planeONB = Onb(vec3f(0,1,0), vec3f(-1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0));
 
     // Triangle
     const v0 = vec3f(-0.2,0.1,0.9);
@@ -72,7 +82,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
     const sphereRGB = vec3f(0,0,0);
     
     // Call an intersection function for each object.
-    if (intersect_plane(*r, hit, planePosition, planeNormal))
+    if (intersect_plane(*r, hit, planePosition, planeONB))
     {
         (*r).tmax = min((*hit).dist, (*r).tmax);
         (*hit).has_hit = true;
@@ -80,6 +90,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
         if ((*r).tmax == (*hit).dist) {
             (*hit).diffuseColor = planeRGB*0.9;
             (*hit).ambientColor = planeRGB*0.1;
+            (*hit).use_texture = true;
         }
     }
     if (intersect_triangle(*r, hit, array<vec3f,3>(v0, v1, v2)))
@@ -92,6 +103,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
             (*hit).normal = normalize(cross(v1 - v0, v2 - v0));
             (*hit).diffuseColor = triangleRGB*0.9;
             (*hit).ambientColor = triangleRGB*0.1;
+            (*hit).use_texture = false;
         }
     }
     if (intersect_sphere(*r, hit, sphereposition, sphereRadius)) {
@@ -101,6 +113,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
             if ((*r).tmax == (*hit).dist) {
                 (*hit).diffuseColor = sphereRGB*0.9;
                 (*hit).ambientColor = sphereRGB*0.1;
+                (*hit).use_texture = false;
             }
         }
 
@@ -108,10 +121,10 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
     return (*hit).has_hit;
 }
 
-fn intersect_plane(r: Ray, hit: ptr<function, HitInfo>, p: vec3f, n: vec3f) -> bool 
+fn intersect_plane(r: Ray, hit: ptr<function, HitInfo>, p: vec3f, onb: Onb) -> bool 
 {
-    let denom = dot(r.direction, n);
-    var t = dot(p - r.origin, n) / denom;
+    let denom = dot(r.direction, onb.normal);
+    var t = dot(p - r.origin, onb.normal) / denom;
 
     var objectHit = (t< r.tmax) & (t > r.tmin);
 
@@ -123,7 +136,9 @@ fn intersect_plane(r: Ray, hit: ptr<function, HitInfo>, p: vec3f, n: vec3f) -> b
             }
             else {(*hit).dist = t;}
             (*hit).position = r.origin + t * r.direction;
-            (*hit).normal = n;
+            (*hit).normal = onb.normal;
+            (*hit).texcoords = 0.2 * vec2f(dot((*hit).position - p, onb.tangent), dot((*hit).position - p, onb.binormal));
+           
         }
     }
     return objectHit;
@@ -200,7 +215,7 @@ fn lambertian(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f
 {
     var light = sample_point_light((*hit).position);
     var ray = Ray(l_pos, -light.w_i, 0.0, light.dist-0.01);
-    var temp = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 0, 1);
+    var temp = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 0, 1, vec2f(0.0), false);
 
     if (intersect_scene(&ray, &temp)) 
     {
@@ -265,6 +280,7 @@ fn shade(r: ptr<function, Ray>, hit: ptr<function,HitInfo>) -> vec3f
         case 3 {return refrection(r,hit);}
         case 4 {return phong(r,hit);}
         case 5{ return phong(r,hit) + refrection(r,hit);}
+        case 6{ return phong(r,hit) + mirror(r,hit);}
         case default { return (*hit).ambientColor + (*hit).diffuseColor; }
     }
 }
@@ -320,7 +336,7 @@ fn texture_linear(texture: texture_2d<f32>, texcoords: vec2f, repeat: bool) -> v
 // Bindings
 
 @group(0) @binding(0) var<uniform> uniforms_f: Uniforms_f;
-@group(0) @binding(1) var<uniform> uniforms_ui: Uniforms_ui;
+@group(0) @binding(1) var my_sampler: sampler;
 @group(0) @binding(2) var my_texture: texture_2d<f32>;
 
 // consts
@@ -333,21 +349,6 @@ const Pi = 3.1415;
 
 // fragement and vertex shaders
 
-/*
-@fragment
-fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f 
-{
-    let uv = vec2f(coords.x * uniforms_f.aspect * 0.5, coords.y * 0.5);
-    let use_repeat = uniforms_ui.use_repeat != 0;
-    let use_linear = uniforms_ui.use_linear != 0;
-    let color = select(
-        texture_nearest(my_texture, uv, use_repeat),
-        texture_linear(my_texture, uv, use_repeat),
-        use_linear
-    );
-    return vec4f(color, 1.0);
-}
-*/
 @fragment
 fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
     const bgcolor = vec4f(0.1, 0.3, 0.6, 1.0);
@@ -355,19 +356,25 @@ fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
     let uv = vec2f(coords.x * uniforms_f.aspect * 0.5f, coords.y * 0.5f);
     var r = get_camera_ray(uv);
     var result = vec3f(0.0);
-    var hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0),0, 1);
+    var textured = vec3f(0.0);
+    var hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0),0, 1, vec2f(0.0),false);
     
     for (var i = 0; i < max_depth; i++) {
         if (intersect_scene(&r, &hit)) {
-            result += shade(&r, &hit);
+            if (hit.use_texture) { textured += shade(&r, &hit); }
+            else {result += shade(&r, &hit);}
         } 
         else {
-            result += bgcolor.rgb;
+            if (hit.use_texture) {textured += bgcolor.rgb;}
+            else {result += bgcolor.rgb;}
             break;
         }
         if (hit.has_hit) {break;}
     }
     
+    let texColor = textureSample(my_texture, my_sampler, hit.texcoords).rgb;
+
+    result += textured * texColor;
     return vec4f(pow(result, vec3f(1.0)), bgcolor.a);
 } 
 
