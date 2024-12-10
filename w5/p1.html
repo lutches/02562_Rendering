@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <h1>W5P1</h1>
+  <link rel="stylesheet" type="text/css" href="../styles.css">
+</head>
+<body>
+<canvas id="webgpu-canvas">
+    Please use a browser that supports HTML5 canvas.
+</canvas>
+  </canvas>
+  <script type="text/javascript" src="p1.js"></script>
+  <div>
+    <menu id="controls">
+
+      <select id="sphereMenu">
+        <option value="0">Base Color</option>
+        <option value="1">Lambertian</option>
+        <option value="2">Mirror</option>
+        <option value="3">refraction</option>
+        <option value="4">Phong</option>
+        <option value="5" selected>Glossy</option>
+        <option value="6">Glossy Mirror</option>
+      </select>
+      <select id="materialMenu">
+        <option value="0">Base Color</option>
+        <option value="1" selected>Lambertian</option>
+      </select>
+      <select id="imageStyle">
+        <option value="0">Clamp To Edge</option>
+        <option value="1" selected>Repeat</option>
+      </select>
+      <button id="increase">Increase</button>
+      <button id="decrease">Decrease</button>
+    </menu>
+  </div>
+</body>
+</html>
+ 
