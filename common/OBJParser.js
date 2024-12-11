@@ -126,9 +126,9 @@ OBJDoc.prototype.parseObjectName = function (sp) {
 }
 
 OBJDoc.prototype.parseVertex = function (sp, scale) {
-  var x = sp.getFloat() * scale;
-  var y = sp.getFloat() * scale;
-  var z = sp.getFloat() * scale;
+  var x = sp.getFloat()*scale;
+  var y = sp.getFloat()*scale;
+  var z = sp.getFloat()*scale;
   return (new Vertex(x, y, z));
 }
 
@@ -158,7 +158,8 @@ OBJDoc.prototype.parseFace = function (sp, materialName, vertices, reverse) {
     if (subWords.length >= 3) {
       var ni = parseInt(subWords[2]) - 1;
       face.nIndices.push(ni);
-    } else {
+    }
+    else {
       face.nIndices.push(-1);
     }
   }
@@ -202,15 +203,15 @@ OBJDoc.prototype.parseFace = function (sp, materialName, vertices, reverse) {
   // Devide to triangles if face contains over 3 points.
   if (face.vIndices.length > 3) {
     var n = face.vIndices.length - 2;
-    var newVIndices = new Array(n * 3);
-    var newNIndices = new Array(n * 3);
-    for (var i = 0; i < n; i++) {
-      newVIndices[i * 3 + 0] = face.vIndices[0];
-      newVIndices[i * 3 + 1] = face.vIndices[i + 1];
-      newVIndices[i * 3 + 2] = face.vIndices[i + 2];
-      newNIndices[i * 3 + 0] = face.nIndices[0];
-      newNIndices[i * 3 + 1] = face.nIndices[i + 1];
-      newNIndices[i * 3 + 2] = face.nIndices[i + 2];
+    var newVIndices = new Array(n*3);
+    var newNIndices = new Array(n*3);
+    for(var i = 0; i < n; i++) {
+      newVIndices[i*3 + 0] = face.vIndices[0];
+      newVIndices[i*3 + 1] = face.vIndices[i + 1];
+      newVIndices[i*3 + 2] = face.vIndices[i + 2];
+      newNIndices[i*3 + 0] = face.nIndices[0];
+      newNIndices[i*3 + 1] = face.nIndices[i + 1];
+      newNIndices[i*3 + 2] = face.nIndices[i + 2];
     }
     face.vIndices = newVIndices;
     face.nIndices = newNIndices;
@@ -313,9 +314,9 @@ OBJDoc.prototype.getDrawingInfo = function () {
     numFaces += this.objects[i].faces.length;
   }
   var numVertices = this.vertices.length;
-  var vertices = new Float32Array(numVertices * 4);
-  var normals = new Float32Array(numVertices * 4);
-  var colors = new Float32Array(numVertices * 4);
+  var vertices = new Float32Array(numVertices*4);
+  var normals = new Float32Array(numVertices*4);
+  var colors = new Float32Array(numVertices*4);
   var indices = new Uint32Array(numIndices);
   var mat_indices = new Uint32Array(numFaces);
   var materials = [];
@@ -345,34 +346,34 @@ OBJDoc.prototype.getDrawingInfo = function () {
       mat_indices[face_indices++] = mat_idx;
       var color = mat.color === undefined ? new Color(0.8, 0.8, 0.8, 1.0) : mat.color;
       var faceNormal = face.normal;
-      for (var k = 0; k < face.vIndices.length; k++) {
+      for (var k = 0; k < face.vIndices.length; ++k) {
         // Set index
         var vIdx = face.vIndices[k];
         indices[index_indices] = vIdx;
         // Copy vertex
         var vertex = this.vertices[vIdx];
-        vertices[vIdx * 4 + 0] = vertex.x;
-        vertices[vIdx * 4 + 1] = vertex.y;
-        vertices[vIdx * 4 + 2] = vertex.z;
-        vertices[vIdx * 4 + 3] = 1.0;
+        vertices[vIdx*4 + 0] = vertex.x;
+        vertices[vIdx*4 + 1] = vertex.y;
+        vertices[vIdx*4 + 2] = vertex.z;
+        vertices[vIdx*4 + 3] = 1.0;
         // Copy color
-        colors[vIdx * 4 + 0] = color.r;
-        colors[vIdx * 4 + 1] = color.g;
-        colors[vIdx * 4 + 2] = color.b;
-        colors[vIdx * 4 + 3] = color.a;
+        colors[vIdx*4 + 0] = color.r;
+        colors[vIdx*4 + 1] = color.g;
+        colors[vIdx*4 + 2] = color.b;
+        colors[vIdx*4 + 3] = color.a;
         // Copy normal
         var nIdx = face.nIndices[k];
         if (nIdx >= 0) {
           var normal = this.normals[nIdx];
-          normals[vIdx * 4 + 0] = normal.x;
-          normals[vIdx * 4 + 1] = normal.y;
-          normals[vIdx * 4 + 2] = normal.z;
-          normals[vIdx * 4 + 3] = 0.0;
+          normals[vIdx*4 + 0] = normal.x;
+          normals[vIdx*4 + 1] = normal.y;
+          normals[vIdx*4 + 2] = normal.z;
+          normals[vIdx*4 + 3] = 0.0;
         } else {
-          normals[vIdx * 4 + 0] = faceNormal.x;
-          normals[vIdx * 4 + 1] = faceNormal.y;
-          normals[vIdx * 4 + 2] = faceNormal.z;
-          normals[vIdx * 4 + 3] = 0.0;
+          normals[vIdx*4 + 0] = faceNormal.x;
+          normals[vIdx*4 + 1] = faceNormal.y;
+          normals[vIdx*4 + 2] = faceNormal.z;
+          normals[vIdx*4 + 3] = 0.0;
         }
         index_indices++;
       }
@@ -552,11 +553,11 @@ function calcNormal(p0, p1, p2) {
 
   // The cross product of v0 and v1
   var c = new Float32Array(3);
-  c[0] = v0[1] * v1[2] - v0[2] * v1[1];
-  c[1] = v0[2] * v1[0] - v0[0] * v1[2];
-  c[2] = v0[0] * v1[1] - v0[1] * v1[0];
+  c[0] = v0[1]*v1[2] - v0[2]*v1[1];
+  c[1] = v0[2]*v1[0] - v0[0]*v1[2];
+  c[2] = v0[0]*v1[1] - v0[1]*v1[0];
 
-  var x = c[0], y = c[1], z = c[2], g = Math.sqrt(x * x + y * y + z * z);
+  var x = c[0], y = c[1], z = c[2], g = Math.sqrt(x*x + y*y + z*z);
   if (g) {
     if (g == 1)
       return c;
@@ -565,6 +566,6 @@ function calcNormal(p0, p1, p2) {
     return c;
   }
   g = 1 / g;
-  c[0] = x * g; c[1] = y * g; c[2] = z * g;
+  c[0] = x*g; c[1] = y*g; c[2] = z*g;
   return c;
 }
