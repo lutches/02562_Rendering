@@ -3,8 +3,11 @@
 @group(0) @binding(2) var<storage> vbuffer: array<vec3f>; 
 @group(0) @binding(3) var<storage> ibuffer: array<vec3u>; 
 @group(0) @binding(4) var<storage> nbuffer: array<vec3f>;
+@group(0) @binding(5) var<storage> mibuffer: array<u32>;    // Material index buffer
+@group(0) @binding(6) var<storage> mcbuffer: array<vec4f>;  // Material color buffer
+@group(0) @binding(7) var<storage> mebuffer: array<vec4f>;  // Material emission buffer
 
-const Pi = 3.1415926535; // Pi, but not
+const Pi = 3.141592; // Pi, but not
 const lightPosition = vec3f(0.0, 1.0, 0.0);
 const epsilon = 0.0001;
 
@@ -52,6 +55,7 @@ struct HitInfo
 @fragment
 fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f
 {
+
     const bgcolor = vec4f(0.1, 0.3, 0.6, 1.0);
     const max_depth = 10;
     var result = vec3f(0.0);
@@ -144,7 +148,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit : ptr<function, HitInfo>) -> bool
             (*r).tmax = min((*hit).dist, (*r).tmax);
             (*hit).has_hit = true;
             if ((*r).tmax == (*hit).dist) {
-                (*hit).diffuseColor = triangleRGB;
+                (*hit).diffuseColor = mcbuffer[mibuffer[i]].rgb + mebuffer[mibuffer[i]].rgb;
             }
         }
     }
@@ -164,8 +168,8 @@ fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, index: u32) -> bool
     if ((t < r.tmax) & (t > r.tmin)) {
         var beta = dot(cross((vbuffer[temp.x]-r.origin), r.direction), e1)/dot(r.direction, n);
         var gamma = -dot(cross((vbuffer[temp.x]-r.origin), r.direction), e0)/dot(r.direction, n);
-        var alpha = 1 - beta - gamma;
         objectHit = (beta >= 0) & (gamma >= 0) & ((beta + gamma) <= 1);
+
         if (objectHit) {
             if ((*hit).dist > 0) {
                 (*hit).dist = min((*hit).dist, t);
@@ -174,8 +178,8 @@ fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, index: u32) -> bool
                 (*hit).dist = t;
             }
             (*hit).position = r.origin + t * r.direction;
-            let x = alpha * nbuffer[temp.x] + beta * nbuffer[temp.y] + gamma * nbuffer[temp.z];
-            (*hit).normal = normalize(x);
+            
+            (*hit).normal = normalize(n);
         }
     }
     
@@ -186,9 +190,10 @@ fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, index: u32) -> bool
 fn shade(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f
 {   
     var light = sample_directional_light();
+
     var ray = Ray((*hit).position, -light.direction, 0.0, light.dist);
     var temp = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 0, 0, 0, 0);
-    return ((*hit).diffuseColor/Pi) * 1 * light.L_i * dot(-light.direction, (*hit).normal);
+    return (*hit).diffuseColor;
 }
 
 

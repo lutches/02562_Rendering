@@ -24,7 +24,11 @@ async function main() {
     const vBuffer = createBuffer(device, drawingInfo.vertices, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
     const iBuffer = createBuffer(device, drawingInfo.indices, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
     const nBuffer = createBuffer(device, drawingInfo.normals, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
-    
+    const miBuffer = createBuffer(device, drawingInfo.mat_indices, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
+
+    const {mc, me} = matrialcolorandemission(drawingInfo.materials);
+    const mcBuffer = createBuffer(device, mc, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
+    const meBuffer = createBuffer(device, me, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
 
     const {uniforms, uniformBuffer} = createUniformBuffer(device, canvas);
     const jitterBuffer = createJitterBuffer(device, 200);
@@ -34,7 +38,7 @@ async function main() {
     // Setup event listeners
     setupEventListeners(uniforms, uniformBuffer, device, animate);
 
-    let bindGroup = createBindGroup(device, pipeline, uniformBuffer, jitterBuffer, vBuffer, iBuffer, nBuffer);
+    let bindGroup = createBindGroup(device, pipeline, uniformBuffer, jitterBuffer, vBuffer, iBuffer, nBuffer, miBuffer, mcBuffer, meBuffer);
 
     function animate() {
         render();
@@ -100,6 +104,25 @@ function createUniformBuffer(device, canvas) {
     return {uniforms, uniformBuffer};
 }
 
+function matrialcolorandemission(materials) {
+    let mc = new Float32Array(materials.length * 4);
+    let me = new Float32Array(materials.length * 4);
+    for (var i = 0; i < materials.length; i++) {
+        mc[i * 4 + 0] = materials[i].color.r;
+        mc[i * 4 + 1] = materials[i].color.g;
+        mc[i * 4 + 2] = materials[i].color.b;
+        mc[i * 4 + 3] = materials[i].color.a;
+    }
+
+    for (var i = 0; i < materials.length; i++) {
+        me[i * 4 + 0] = materials[i].emission.r;
+        me[i * 4 + 1] = materials[i].emission.g; 
+        me[i * 4 + 2] = materials[i].emission.b;
+        me[i * 4 + 3] = materials[i].emission.a;
+    }
+    return {mc, me};
+}
+
 // Create the jitter buffer
 function createJitterBuffer(device, length) {
     const jitter = new Float32Array(length);
@@ -144,7 +167,7 @@ function setupEventListeners(uniforms, uniformBuffer, device, animatecallback) {
 }
 
 // Create a bind group
-function createBindGroup(device, pipeline, uniformBuffer, jitterBuffer, vBuffer, iBuffer, nBuffer) {
+function createBindGroup(device, pipeline, uniformBuffer, jitterBuffer, vBuffer, iBuffer, nBuffer, miBuffer, mcBuffer, meBuffer) {
     return device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
         entries: [
@@ -153,6 +176,9 @@ function createBindGroup(device, pipeline, uniformBuffer, jitterBuffer, vBuffer,
             { binding: 2, resource: { buffer: vBuffer } },
             { binding: 3, resource: { buffer: iBuffer } },
             { binding: 4, resource: { buffer: nBuffer } },
+            { binding: 5, resource: { buffer: miBuffer } },
+            { binding: 6, resource: { buffer: mcBuffer } },
+            { binding: 7, resource: { buffer: meBuffer } },
         ],
     });
 }
