@@ -52,9 +52,9 @@ struct HitInfo
 @fragment
 fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f
 {
-    let unused = libuffer[0];
     const bgcolor = vec4f(0.1, 0.3, 0.6, 1.0);
     const max_depth = 10;
+
     var result = vec3f(0.0);
     for (var j = 0u; j < u32(uniforms.jitterSub*uniforms.jitterSub); j++) 
     {
@@ -161,8 +161,6 @@ fn sample_directional_light() -> Light
 
 fn intersect_scene(r: ptr<function, Ray>, hit : ptr<function, HitInfo>) -> bool
 {
-    var triangleRGB = vec3f(0.9);
-    (*r).tmin = epsilon;
     for (var i = 0u; i < arrayLength(&ibuffer); i++) 
     {
         if (intersect_triangle(*r, hit, i)) {
