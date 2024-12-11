@@ -1,3 +1,10 @@
+@group(0) @binding(0) var<uniform> uniforms_f: Uniforms_f;
+@group(0) @binding(1) var my_sampler: sampler;
+@group(0) @binding(2) var my_texture: texture_2d<f32>;
+@group(0) @binding(3) var<storage> jitter: array<vec2f>;
+@group(0) @binding(4) var<storage> vPositions: array<vec3f>;
+@group(0) @binding(5) var<storage> meshFaces: array<vec3u>; 
+
 struct Uniforms_f {
     aspect: f32,
     cam_const: f32,
@@ -90,7 +97,7 @@ fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
             (*hit).use_texture = true;
         }
     }
-    if (intersect_triangle(*r, hit, array<vec3f,3>(v0, v1, v2)))
+    if (intersect_triangle(*r, hit, meshFaces[0]))
     {
         (*r).tmax = min((*hit).dist, (*r).tmax);
         (*hit).has_hit = true;
@@ -141,23 +148,22 @@ fn intersect_plane(r: Ray, hit: ptr<function, HitInfo>, p: vec3f, onb: Onb) -> b
     return objectHit;
 }
 
-fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, v: array<vec3f,3>) -> bool 
-{
-    let e0 = v[0]-v[1];
-    let e1 = v[0]-v[2];
-    let n = cross(e0,e1 );
-
-    var denom = dot(r.direction, n);
-    var t = dot(v[0]-r.origin, n)/ denom;
-
-    var objectHit = false;
-    if ((t < r.tmax) && (t > r.tmin))
+fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, index: vec3u) -> bool 
     {
-        let beta = dot(cross((v[0]-r.origin), r.direction), e1)/denom;
-        let gamma = dot(cross((v[0]-r.origin), r.direction), e0)/denom;
-        objectHit = (beta >= 0) & (gamma >= 0) & ((beta + gamma) <= 1);
-    }
-    if (objectHit) {
+        var e0 = vPositions[index.y] - vPositions[index.x];
+        var e1 = vPositions[index.z] - vPositions[index.x];
+        var n = cross(e0, e1);
+
+        var t = (dot((vPositions[index.x] - r.origin), n)) / dot(r.direction, n);
+
+        var objectHit = false;
+        if ((t < r.tmax) & (t > r.tmin)) {
+            var beta = dot(cross((vPositions[index.x]-r.origin), r.direction), e1)/dot(r.direction, n);
+            var gamma = -dot(cross((vPositions[index.x]-r.origin), r.direction), e0)/dot(r.direction, n);
+            objectHit = (beta >= 0) & (gamma >= 0) & ((beta + gamma) <= 1);
+        }
+        
+        if (objectHit) {
             if ((*hit).dist > 0) {
                 (*hit).dist = min((*hit).dist, t);
             }
@@ -167,11 +173,8 @@ fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, v: array<vec3f,3>) ->
             (*hit).position = r.origin + t * r.direction;
             (*hit).normal = n;
         }
-    else {
-        objectHit = false;
+        return objectHit;
     }
-    return objectHit;
-}
 
 fn intersect_sphere(r: Ray, hit: ptr<function, HitInfo>, position: vec3f, radius: f32) -> bool 
 {
@@ -332,10 +335,6 @@ fn texture_linear(texture: texture_2d<f32>, texcoords: vec2f, repeat: bool) -> v
 }
 // Bindings
 
-@group(0) @binding(0) var<uniform> uniforms_f: Uniforms_f;
-@group(0) @binding(1) var my_sampler: sampler;
-@group(0) @binding(2) var my_texture: texture_2d<f32>;
-@group(0) @binding(3) var<storage> jitter: array<vec2f>;
 // consts
 
 const l_pos = vec3f(0,1,0);

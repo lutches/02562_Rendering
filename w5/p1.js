@@ -1,7 +1,8 @@
 "use strict";
 
 window.onload = function () { main(); }
-
+var vBuffer;
+var mBuffer;
 
 
 async function main() {
@@ -12,14 +13,36 @@ async function main() {
     const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
     context.configure({ device: device, format: canvasFormat, });
 
+    // Triangle
+    const triangleVertices = [
+        -0.2, 0.1, 0.9, 1,
+        0.2, 0.1, 0.9, 1,
+        -0.2, 0.1, -0.1, 1
+    ];
+    const typedTriangle = new Float32Array(triangleVertices);
+    
+    const vBuffer = device.createBuffer({
+        size: typedTriangle.byteLength,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+    });
+    device.queue.writeBuffer(vBuffer, 0, typedTriangle);
+    
+    const faceIndicies = [
+        0, 1, 2, 0
+    ];
+    const typedFace = new Int32Array(faceIndicies);
+
+    const iBuffer = device.createBuffer({
+        size: typedFace.byteLength,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+    });
+    device.queue.writeBuffer(iBuffer, 0, typedFace);
+
 
     const wgsl = device.createShaderModule({
         code: await (await fetch("./p1.wgsl")).text()
     });
 
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
     const aspect = canvas.width / canvas.height;
     var cam_const = 1.0;
     const sphereMaterial = 5.0;
@@ -83,6 +106,7 @@ async function main() {
 
     device.queue.writeBuffer(uniformBuffer, 0, uniforms);
 
+
     var bindGroups = [];
     for (var i = 0; i < 2; i++) {
         const bindGroup = device.createBindGroup({
@@ -92,6 +116,8 @@ async function main() {
                 { binding: 1, resource: texture.samplers[i] },
                 { binding: 2, resource: texture.createView() },
                 { binding: 3, resource: { buffer: jitterBuffer } },
+                { binding: 4, resource: { buffer: vBuffer } },
+                { binding: 5, resource: { buffer: iBuffer } },
             ],
         });
         bindGroups.push(bindGroup);
@@ -147,13 +173,6 @@ async function main() {
     imageStyle.addEventListener("change", function (ev) {
         groupNumber = parseInt(imageStyle.value);
         console.log(groupNumber);
-        animate();
-    });
-
-    window.addEventListener("resize", function () {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        uniforms[0] = canvas.width / canvas.height;
         animate();
     });
 

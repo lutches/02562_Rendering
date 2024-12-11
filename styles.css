@@ -93,10 +93,6 @@ button:active {
     transform: scale(0.95);
 }
 
-canvas {
-    height: 100%;
-    width: 100%;
-}
 
 #controls
 {
