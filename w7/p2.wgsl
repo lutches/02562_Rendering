@@ -74,8 +74,6 @@ struct HitInfo {
   refractive_ratio: f32, // ratio of incident to transmitted refractive index
   shader: u32,
   texcoords: vec2f, // xy coordinates of texture collision point
-  emit: bool, 
-  factor: vec3f, // RGB emission
 }
 // shader type names:
 const shader_reflect: u32 = 2;
@@ -110,7 +108,10 @@ fn rnd(prev: ptr<function, u32>) -> f32 {
 }
 
 const tex_scale = 0.02;
-const pi = 3.141592;
+// these are all arrays so we can choose the settings
+// for the loaded OBJ file
+// eye point
+// these are in the order bunny, teapot, dragon
 const e = vec3f(277, 275.0, -570.0);
 // camera constant
 const d = 1.0f;
@@ -356,13 +357,13 @@ fn int_triangle(ray: Ray, hit: ptr<function, HitInfo>, i: u32) -> bool {
         let gamma = -dot(partial, e0) / omega_dot_n;
         if(gamma >= 0 && (beta + gamma) <= 1){
           let matIndex = vert_indices[i].w;
-          let material = materials[matIndex];
-          (*hit).color_diff = material.diffuse.rgb;
-          (*hit).color_amb = material.emission.rgb;
-          if(length(hit.color_amb) > 1e-1){
-            hit.emit = true;
+          if (matIndex >= arrayLength(&materials)) {
+            // Handle invalid material index
+            (*hit).color_amb = vec3f(1.0);
           } else {
-            hit.emit = false;
+            let material = materials[matIndex];
+            (*hit).color_diff = material.diffuse.rgb;
+            (*hit).color_amb = material.emission.rgb;
           }
           (*hit).hit = true;
           (*hit).distance = t;
@@ -387,9 +388,11 @@ struct Light {
   dist: f32,
 }
 
-// sample all triangles of area light
-fn sample_trimesh_light(p: vec3f, t: ptr<function, u32>) -> Light {
-
+// take a random montie-carlo sample of the area light
+fn sample_trimesh_light(p: vec3f, seed: ptr<function, u32>) -> Light {
+  // take a sample of a random triangle,
+  // where the prob of each triangle is
+  // that triangle's area out of total area
   let numTriangles = arrayLength(&light_indices);
   var totalArea = 0f;
   for(var i = 0u; i < numTriangles; i ++){
@@ -403,12 +406,14 @@ fn sample_trimesh_light(p: vec3f, t: ptr<function, u32>) -> Light {
     let area = length(cross(q[1]-q[0], q[2]-q[0]));
     totalArea += abs(area);
   }
-  let sampled_triangle_area = rnd(t) * totalArea;
+  let sampled_triangle_area = rnd(seed) * totalArea;
   var sample_idx = 0u;
   var cumulArea = 0f;
-
+  // find which triangle the sampled area corresponds to
+  // basically use sampled_triangle_area as the CDF
+  // and invert it to find the sampled item
   for(var i = 0u; i < numTriangles; i ++){
-  
+    // have to calculate areas again...
     let idx = light_indices[i];
     let vs = vert_indices[idx].xyz;
     let q = array<vec3f, 3>(
@@ -426,26 +431,27 @@ fn sample_trimesh_light(p: vec3f, t: ptr<function, u32>) -> Light {
   // get triangle
   let index = light_indices[sample_idx];
   let verts = vert_indices[index].xyz;
-
+  // coords of the 3 corner vertices of light
   let q = array<vec3f, 3>(
     vert_attribs[verts[0]].pos.xyz,
     vert_attribs[verts[1]].pos.xyz,
     vert_attribs[verts[2]].pos.xyz
   );
-
+  // vertex normals
   let norms = array<vec3f, 3>(
     vert_attribs[verts[0]].normal.xyz,
     vert_attribs[verts[1]].normal.xyz,
     vert_attribs[verts[2]].normal.xyz,
   );
-
-
-  let r1 = rnd(t);
-  let r2 = rnd(t);
+  // generate uniformly random barycentric coordinates
+  // two random with pdf(x)=1 for 0<=x<1
+  let r1 = rnd(seed);
+  let r2 = rnd(seed);
   let alpha = 1f - sqrt(r1);
   let beta = (1f - r2) * sqrt(r1);
   let gamma = r2 * sqrt(r1);
 
+  // randomly sampled point on light
   let point = alpha*q[0] + beta*q[1] + gamma*q[2];
   let norm = alpha*norms[0] + beta*norms[1] + gamma*norms[2];
 
@@ -454,7 +460,8 @@ fn sample_trimesh_light(p: vec3f, t: ptr<function, u32>) -> Light {
 
 
   let areaCross = cross(e0, e1);
-  let area = length(areaCross) * 0.5; 
+  // magnitude of vector = sqrt(dot(vector, vector))
+  let area = length(areaCross) * 0.5; // area = 1/2 | e0 X e1 |
 
   // direction from point to light
   var Le = materials[vert_indices[index].w].emission.rgb;
@@ -465,58 +472,32 @@ fn sample_trimesh_light(p: vec3f, t: ptr<function, u32>) -> Light {
   let Li = dot(-wi, norm) * Le * area * pow(1/dist, 2);;
 
   return Light(Li, wi, dist);
+
 }
 
 
 fn check_shadow(pos: vec3f, lightdir: vec3f, lightdist: f32) -> bool{
   var lightray =  Ray(pos, lightdir, 10e-4, lightdist-10e-4);
-  var lighthit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 1.0, 1.0, 0, vec2f(0.0), false, vec3f(1.0));
+  var lighthit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 1.0, 1.0, 0, vec2f(0.0));
   return int_scene(&lightray, &lighthit);
 }
 
-fn lambert(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f {
-  // p of reflection:
-  hit.factor = hit.factor * hit.color_diff;
-  let Pd = (hit.factor.x + hit.factor.y + hit.factor.z) * 0.333;
-  let decision = rnd(t);
-  if(decision < Pd){
-    hit.hit = false;
-    hit.factor = hit.factor / Pd;
-
-    r.origin = hit.position;
-
-    let sample_cos_theta = sqrt(1f - rnd(t));
-    let sample_phi = 2 * 3.14159 * rnd(t);
-
-    let sample_sin_theta = sqrt(1f - sample_cos_theta * sample_cos_theta);
-    let sampledDir = rotate_to_normal(
-      hit.normal,
-      spherical_direction(
-        sample_sin_theta, 
-        sample_cos_theta, 
-        sample_phi
-      )
-    );
-    r.direction = sampledDir;
-    (*r).tmin = 1e-2; 
-    (*r).tmax = 1e10;
-    return vec3f(0);
-  }
-
+fn lambert(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, seed: ptr<function, u32>) -> vec3f {
   var Lr = ((*hit).color_amb / 3.14159);
-  let light = sample_trimesh_light((*hit).position, t);
-
+  let light = sample_trimesh_light((*hit).position, seed);
+  // distant area light, so just use one sample point for visibility chekc
   if(!check_shadow((*hit).position, light.wi, light.dist)){
     Lr += ((*hit).color_diff / (3.14159)) * light.Li * max(dot((*hit).normal, light.wi), 0.0);;
   }
+  // use ambient light and reflected light
   return Lr;
 }
 
-fn phong(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f {
+fn phong(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, seed: ptr<function, u32>) -> vec3f {
   let wo = normalize((*r).origin - (*hit).position);
-  var Lr = ((*hit).color_amb / pi);
+  var Lr = ((*hit).color_amb / 3.14159);
 
-  let light = sample_trimesh_light((*hit).position, t);
+  let light = sample_trimesh_light((*hit).position, seed);
   // see if path to the light intersects an object (ie we are in shadow)
   if(!check_shadow((*hit).position, light.wi, light.dist)){
     let wr = reflect(light.wi, (*hit).normal);
@@ -524,7 +505,7 @@ fn phong(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u3
     light.Li * 
     dot(light.wi, (*hit).normal) *
     (
-      ((*hit).color_diff / pi) + 
+      ((*hit).color_diff / 3.14159) + 
       (
         (*hit).color_specular * 
         ((*hit).shine + 2) * 0.15915494309 * // 1/2pi = 0.15915494309
@@ -533,6 +514,7 @@ fn phong(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u3
     );
   }
 
+  
 
   if(dot(Lr, Lr) < 0.5){
     return vec3f(0);
@@ -565,11 +547,12 @@ fn shade_refract(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
   return vec3f(0);
 }
 
-fn shade(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f{
+fn shade(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, seed: ptr<function, u32>) -> vec3f{
   switch (*hit).shader {
-    case shader_matte { return lambert(r, hit, t);}
+    case shader_matte { return lambert(r, hit, seed);}
     case shader_reflect {
-
+      // case 2 indicates a reflective material. we need to re-cast a ray from the reflected position
+      // on the intersected surface. this means modifying the ray
       (*hit).hit = false; // tell iterator to re-trace ray
       (*r).origin = (*hit).position; // cast ray from intersection position
       (*r).direction = reflect((*r).direction, (*hit).normal); // reflect the incoming ray about the surface normal
@@ -581,10 +564,10 @@ fn shade(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u3
       return shade_refract(r, hit);
     }
     case shader_phong {
-      return phong(r, hit, t);
+      return phong(r, hit, seed);
     }
     case shader_glossy {
-      return phong(r, hit, t) + shade_refract(r, hit);
+      return phong(r, hit, seed) + shade_refract(r, hit);
     }
     //case default { return -(*r).direction;}
     case default {return (*hit).color_diff + (*hit).color_amb;}
@@ -596,24 +579,6 @@ struct FSOut {
   @location(1) accum: vec4f,
 }
 
-// get direction vector in rectangular coords from spherical coords
-fn spherical_direction(sin_theta: f32, cos_theta: f32, phi: f32) -> vec3f {
-  return vec3f(sin_theta * cos(phi), sin_theta*sin(phi), cos_theta);
-}
-
-// given direction vector v sampled around z-axis of local coord
-// this function applies same rotation to v as needed to rotate z-axis to n
-// in essence, realigning v to be relative to the normal vector n
-fn rotate_to_normal(n: vec3f, v: vec3f) -> vec3f {
-  let s = sign(n.z + 1e-16f);
-  let a = -1f/(1f + abs(n.z));
-  let b = n.x * n.y * a;
-  return 
-    vec3f(1.0f + n.x*n.x*a, b, -s*n.x)*v.x 
-    + vec3f(s*b, s*(1.0f + n.y*n.y*a), -n.y)*v.y 
-    + n*v.z;
-}
-
 // the fragment defines the shader function run at each pixel
 @fragment
 fn main_fs(@builtin(position) fragcoord: vec4f, @location(0) coords: vec2f) -> FSOut {
@@ -622,11 +587,11 @@ fn main_fs(@builtin(position) fragcoord: vec4f, @location(0) coords: vec2f) -> F
   // x-y jitter in the range [0, 1)
   let jitter = vec2f(rnd(&t), rnd(&t)) / f32(uniforms_int.canvas_height);
 
-  const bgcolor = vec4f(0.0, 0.0, 0.0, 1.0);
+  const bgcolor = vec4f(0.1, 0.3, 0.6, 0.9);
   const max_depth = 10;
   var result = vec3f(0.0);
   // iterate over each sub-pixel position
-  var hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 1.0, 1.0, 0, vec2f(0.0), false, vec3f(1.0));
+  var hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), vec3f(0.0), 1.0, 1.0, 0, vec2f(0.0));
   var ipcoords = vec2f((coords.x)*uniforms_f.aspect*0.5, (coords.y)*0.5);
   var r = get_camera_ray(ipcoords + jitter); 
   for(var i = 0; i < max_depth; i ++){
@@ -636,6 +601,7 @@ fn main_fs(@builtin(position) fragcoord: vec4f, @location(0) coords: vec2f) -> F
         break;
       }
       if(dot(result, result) >= 0.99){
+        // save some computation if saturated already
         break;
       }
     } else {
