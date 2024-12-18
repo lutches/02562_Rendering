@@ -178,11 +178,15 @@ async function main() {
     running = !running;
   };
 
-  setInterval(() => {
+  function loop() {
+
     frameCounter.innerText = "Frame: " + uniforms_int[2];
     if (running) {
       animate();
     }
-  }, 1);
+    loop();
+  }
+  
   animate();
+  loop();
 }
