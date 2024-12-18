@@ -181,7 +181,7 @@ async function main() {
   setInterval(() => {
     frameCounter.innerText = "Frame: " + uniforms_int[2];
     if (running) {
-      requestAnimationFrame(animate);
+      animate();
     }
   }, 1);
   animate();
