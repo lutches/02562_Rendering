@@ -25,7 +25,7 @@ async function main() {
     format: canvasFmt,
   });
 
-  const wgslCode = await (await fetch("./p1.wgsl")).text();
+  const wgslCode = await (await fetch("./p3.wgsl")).text();
   const shaderModule = device.createShaderModule({
     code: wgslCode,
   });
