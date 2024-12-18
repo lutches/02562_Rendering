@@ -178,15 +178,15 @@ async function main() {
     running = !running;
   };
 
-  function loop() {
-
+  
+  // every millisecond, request a new frame
+  setInterval(() => {
     frameCounter.innerText = "Frame: " + uniforms_int[2];
-    if (running) {
-      animate();
+    if(running && uniforms_int[2] < 1000000) {
+      requestAnimationFrame(animate);
     }
-    loop();
-  }
+
+  }, 1);
   
   animate();
-  loop();
 }
