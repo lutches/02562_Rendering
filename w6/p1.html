@@ -6,9 +6,28 @@
     <link rel="stylesheet" type="text/css" href="../styles.css" />
   </head>
   <body>
-    
+    <script type="text/javascript" src="../common/MV.js"></script>
+    <script type="text/javascript" src="../common/BspTree.js"></script>
+    <script type="text/javascript" src="../common/Aabb.js"></script>
     <script type="text/javascript" src="../common/OBJParser.js"></script>
     <script type="text/javascript" src="p1.js"></script>
-    <canvas id="webgpu-canvas" width="512" height="512"> </canvas>
+
+    <div style="align-items: flex-start">
+      <canvas id="webgpu-canvas" width="512" height="512"> </canvas>
+      <div style="margin-left: 10px; margin-right: 10px">
+        <a>
+          A BSP works by recursively subdividing a space into convex sets using
+          hyperplanes, which helps in organizing objects within that space.
+          Here's a simple breakdown of how a BSP tree works: 1. Choose a
+          partitioning plane. 2. Divide the objects into two groups based on
+          their position relative to the plane. 3. Recursively apply this
+          process to each group, creating a binary tree structure. Each node in
+          the tree represents a partitioning plane, with the left child
+          representing one side of the plane and the right child representing
+          the other. This structure is usefule for visibility determination and
+          collision detection, as it allows for faster searching in the scene.
+        </a>
+      </div>
+    </div>
   </body>
 </html>

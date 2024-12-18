@@ -18,20 +18,12 @@ async function main() {
     configureCanvasContext(context, device, canvasFormat);
 
     const pixelSize = 1 / canvas.height;
-    const objFilename = '../objects/CornellBoxWithBlocks.obj';
+    const objFilename = '../objects/dragon.obj';
     const drawingInfo = await readOBJFile(objFilename, 1, true);
 
-    const vBuffer = createBuffer(device, drawingInfo.vertices, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
-    const iBuffer = createBuffer(device, drawingInfo.indices, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
-    const nBuffer = createBuffer(device, drawingInfo.normals, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
-    const miBuffer = createBuffer(device, drawingInfo.mat_indices, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
+    const buffers = build_bsp_tree(drawingInfo, device, new Object());
 
-    const {mc, me} = matrialcolorandemission(drawingInfo.materials);
-    const mcBuffer = createBuffer(device, mc, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
-    const meBuffer = createBuffer(device, me, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
-    const liBuffer = createBuffer(device, drawingInfo.light_indices, GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE);
-
-    const {uniforms, uniformBuffer} = createUniformBuffer(device, canvas);
+    const { uniforms, uniformBuffer } = createUniformBuffer(device, canvas);
     const jitterBuffer = createJitterBuffer(device, 200);
 
     const pipeline = await createRenderPipeline(device, canvasFormat);
@@ -39,7 +31,7 @@ async function main() {
     // Setup event listeners
     setupEventListeners(uniforms, uniformBuffer, device, animate);
 
-    let bindGroup = createBindGroup(device, pipeline, uniformBuffer, jitterBuffer, vBuffer, iBuffer, nBuffer, miBuffer, mcBuffer, meBuffer, liBuffer);
+    let bindGroup = createBindGroup(device, pipeline, uniformBuffer, jitterBuffer, buffers);
 
     function animate() {
         render();
@@ -88,12 +80,12 @@ function createBuffer(device, data, usage) {
 // Create the uniform buffer
 function createUniformBuffer(device, canvas) {
     const aspect = canvas.width / canvas.height;
-    const cameraConstant = 1;
+    const cameraConstant = 1.5;
     const jitterSub = 1;
     const eye = [0.15, 1.5, 10.0];
     const lookat = [0.15, 1.5, 0.0];
     const up = [0.0, 1.0, 0.0];
-    
+
     const uniforms = new Float32Array([aspect, cameraConstant, jitterSub, eye, lookat, up]);
 
     const uniformBuffer = device.createBuffer({
@@ -102,7 +94,7 @@ function createUniformBuffer(device, canvas) {
     });
     device.queue.writeBuffer(uniformBuffer, 0, uniforms);
 
-    return {uniforms, uniformBuffer};
+    return { uniforms, uniformBuffer };
 }
 
 function matrialcolorandemission(materials) {
@@ -117,11 +109,11 @@ function matrialcolorandemission(materials) {
 
     for (var i = 0; i < materials.length; i++) {
         me[i * 4 + 0] = materials[i].emission.r;
-        me[i * 4 + 1] = materials[i].emission.g; 
+        me[i * 4 + 1] = materials[i].emission.g;
         me[i * 4 + 2] = materials[i].emission.b;
         me[i * 4 + 3] = materials[i].emission.a;
     }
-    return {mc, me};
+    return { mc, me };
 }
 
 // Create the jitter buffer
@@ -168,19 +160,19 @@ function setupEventListeners(uniforms, uniformBuffer, device, animatecallback) {
 }
 
 // Create a bind group
-function createBindGroup(device, pipeline, uniformBuffer, jitterBuffer, vBuffer, iBuffer, nBuffer, miBuffer, mcBuffer, meBuffer, liBuffer) {
+function createBindGroup(device, pipeline, uniformBuffer, jitterBuffer, buffers) {
     return device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: { buffer: uniformBuffer } },
             { binding: 1, resource: { buffer: jitterBuffer } },
-            { binding: 2, resource: { buffer: vBuffer } },
-            { binding: 3, resource: { buffer: iBuffer } },
-            { binding: 4, resource: { buffer: nBuffer } },
-            { binding: 5, resource: { buffer: miBuffer } },
-            { binding: 6, resource: { buffer: mcBuffer } },
-            { binding: 7, resource: { buffer: meBuffer } },
-            { binding: 8, resource: { buffer: liBuffer } },
+            { binding: 2, resource: { buffer: buffers.positions } },
+            { binding: 3, resource: { buffer: buffers.indices } },
+            { binding: 4, resource: { buffer: buffers.normals } },
+            { binding: 5, resource: { buffer: buffers.aabb } },
+            { binding: 6, resource: { buffer: buffers.treeIds } },
+            { binding: 7, resource: { buffer: buffers.bspTree } },
+            { binding: 8, resource: { buffer: buffers.bspPlanes } },
         ],
     });
 }
