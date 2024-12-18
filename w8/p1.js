@@ -1,8 +1,8 @@
-
-window.onload = function () { main(); }
+window.onload = function () {
+  main();
+};
 
 async function main() {
-  console.log("Begin main function");
   if (!navigator.gpu) {
     throw new Error("WebGPU not supported on this browser.");
   }
@@ -14,18 +14,21 @@ async function main() {
 
   const device = await adapter.requestDevice();
 
+  // Load WGSL shader code
   const wgsl = device.createShaderModule({
     code: await (await fetch("./p1.wgsl")).text()
   });
 
+  // Setup canvas and configure context
   const canvas = document.querySelector("canvas");
   const ctx = canvas.getContext("webgpu");
-  const canvasFmt = navigator.gpu.getPreferredCanvasFormat();
-  ctx.configure({ device: device, format: canvasFmt });
+  const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+  ctx.configure({
+    device: device,
+    format: canvasFormat
+  });
 
-
-
-
+  // Create pipeline
   const pipeline = device.createRenderPipeline({
     layout: "auto",
     vertex: {
@@ -36,8 +39,8 @@ async function main() {
       module: wgsl,
       entryPoint: "main_fs",
       targets: [
-        { format: canvasFmt },
-        { format: "rgba32float" } // output to texture for progressive rendering
+        { format: canvasFormat },
+        { format: "rgba32float" } // Second render target for progressive rendering
       ]
     },
     primitive: {
@@ -45,22 +48,24 @@ async function main() {
     }
   });
 
-  let textures = new Object();
-  textures.width = canvas.width;
-  textures.height = canvas.height;
-  textures.renderSrc = device.createTexture({
-    size: [canvas.width, canvas.height],
-    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
-    format: 'rgba32float',
-  });
+  // Setup textures
+  const textures = {
+    width: canvas.width,
+    height: canvas.height,
+    renderSrc: device.createTexture({
+      size: [canvas.width, canvas.height],
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+      format: 'rgba32float',
+    }),
+    renderDst: device.createTexture({
+      size: [canvas.width, canvas.height],
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      format: 'rgba32float',
+    })
+  };
 
-  textures.renderDst = device.createTexture({
-    size: [canvas.width, canvas.height],
-    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-    format: 'rgba32float',
-  })
-
-  render = (dev, context, pipe, texs, bg) => {
+  // Render function
+  function render(dev, context, pipe, texs, bindGroup) {
     const encoder = dev.createCommandEncoder();
 
     const pass = encoder.beginRenderPass({
@@ -77,8 +82,7 @@ async function main() {
         }
       ]
     });
-    pass.setBindGroup(0, bg);
-
+    pass.setBindGroup(0, bindGroup);
     pass.setPipeline(pipe);
     pass.draw(4);
     pass.end();
@@ -86,103 +90,68 @@ async function main() {
     encoder.copyTextureToTexture(
       { texture: texs.renderSrc },
       { texture: texs.renderDst },
-      [textures.width, textures.height]
+      [texs.width, texs.height]
     );
 
     dev.queue.submit([encoder.finish()]);
-  };
+  }
 
+  // Load scene geometry
+  const filename = "../objects/CornellBox.obj";
+  const drawingInfo = await readOBJFile(filename, 1, true);
 
-  var filename = "../objects/CornellBox.obj";
-
-
+  // Prepare uniform data
   const aspect = canvas.width / canvas.height;
   const gamma = 1.5;
-  var uniforms_f = new Float32Array([aspect, gamma]);
-  var frame_num = 0;
-  var uniforms_int = new Int32Array([canvas.width, canvas.height, frame_num]);
+  const uniforms_f = new Float32Array([aspect, gamma]);
 
-
+  let frame_num = 0;
+  const uniforms_int = new Int32Array([canvas.width, canvas.height, frame_num]);
 
   const uniformBuffer_f = device.createBuffer({
     size: uniforms_f.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
+
   const uniformBuffer_int = device.createBuffer({
-    size: uniforms_int.byteLength, // number of bytes 
+    size: uniforms_int.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-
-
-
-  // bspTreeBuffers has the following:
-  // - attribs (positions + normals?)
-  // - colors
-  // - indices
-  // - treeIds
-  // - bspTree
-  // - bspPlanes
-  // - aabb (stored in uniform buffer)
-
-  // the build_bsp_tree function creates these buffer on the device
-  // all we have to do is put them in the right spots in the bindGroup layout
-
-
-
 
   device.queue.writeBuffer(uniformBuffer_f, 0, uniforms_f);
   device.queue.writeBuffer(uniformBuffer_int, 0, uniforms_int);
 
+  // Build BSP tree and related buffers
+  const bspTreeBuffers = build_bsp_tree(drawingInfo, device, {});
 
-
-
-  console.log("Load OBJ File " + filename);
-
-  const drawingInfo = await readOBJFile(filename, 1, true); // filename, scale, ccw vertices
-  console.log("Start building tree");
-  const bspTreeBuffers = build_bsp_tree(drawingInfo, device, {})
-  console.log("done building tree");
-
-
-  console.log("indices:");
-  console.log(drawingInfo.indices);
-  // To see every 4th element (material indices):
-  console.log("material indices:");
-  console.log(drawingInfo.indices.filter((_, i) => i % 4 === 3));
-  console.log("vertices:");
-  console.log(drawingInfo.attribs.filter((_, i) => i % 8 < 3));
-
-  console.log("AABB:", root.bbox);
+  // Create light indices buffer
   const lightIndicesBuffer = device.createBuffer({
     size: drawingInfo.light_indices.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
   });
-
   device.queue.writeBuffer(lightIndicesBuffer, 0, drawingInfo.light_indices);
 
-
-  // flatten into diffuse, then emitted
-  const mats = drawingInfo.materials.map((m) => [m.color, m.emission]).flat().map((color) => [color.r, color.g, color.b, color.a]).flat();
-  console.log("Mats");
-  console.log(mats);
+  // Flatten and upload material data
+  const mats = drawingInfo.materials
+    .map(m => [m.color, m.emission])
+    .flat()
+    .map(color => [color.r, color.g, color.b, color.a])
+    .flat();
   const materialsArray = new Float32Array(mats);
-  console.log(materialsArray);
+
   const materialsBuffer = device.createBuffer({
     size: materialsArray.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
-
   device.queue.writeBuffer(materialsBuffer, 0, materialsArray);
 
-
+  // Create bind group
   const bindGroup = device.createBindGroup({
     layout: pipeline.getBindGroupLayout(0),
     entries: [
-      // uniforms 
       { binding: 0, resource: { buffer: uniformBuffer_f } },
       { binding: 1, resource: { buffer: uniformBuffer_int } },
       { binding: 3, resource: { buffer: bspTreeBuffers.aabb } },
-      // storage buffers (max 8!)
       { binding: 4, resource: { buffer: bspTreeBuffers.attribs } },
       { binding: 6, resource: { buffer: materialsBuffer } },
       { binding: 7, resource: { buffer: bspTreeBuffers.indices } },
@@ -191,13 +160,11 @@ async function main() {
       { binding: 10, resource: { buffer: bspTreeBuffers.bspPlanes } },
       { binding: 11, resource: { buffer: lightIndicesBuffer } },
       { binding: 12, resource: textures.renderDst.createView() },
-
     ],
   });
 
-
+  // Animation loop
   function animate() {
-    console.log(frame_num);
     uniforms_int[2] = frame_num;
     frame_num++;
     device.queue.writeBuffer(uniformBuffer_int, 0, uniforms_int);
@@ -205,22 +172,17 @@ async function main() {
   }
 
   const frameCounter = document.getElementById("framecount");
+  let running = true;
 
-  requestAnimationFrame(animate);
-
-  var running = false;
   document.getElementById("run").onclick = () => {
     running = !running;
   };
 
-  // every millisecond, request a new frame
+  // Update frames at a set interval
   setInterval(() => {
     frameCounter.innerText = "Frame: " + frame_num;
-    if (running) {
+    if (running && frame_num < 500) {
       requestAnimationFrame(animate);
     }
-
   }, 1);
-
 }
-
