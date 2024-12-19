@@ -16,7 +16,7 @@ async function main() {
 
   // Load WGSL shader code
   const wgsl = device.createShaderModule({
-    code: await (await fetch("./project.wgsl")).text()
+    code: await (await fetch("./project2.wgsl")).text()
   });
 
   // Setup canvas and configure context
@@ -220,7 +220,7 @@ async function main() {
 
   // Update frames at a set interval
   setInterval(() => {
-    if (frame_num < 2000) { // 1000 renderpasses is sufficient
+    if (frame_num < 50000) {
       requestAnimationFrame(animate);
     }
   }, 1);
