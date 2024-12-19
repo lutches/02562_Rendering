@@ -18,7 +18,7 @@ async function main() {
     configureCanvasContext(context, device, canvasFormat);
 
     const pixelSize = 1 / canvas.height;
-    const objFilename = '../objects/dragon.obj';
+    const objFilename = '../objects/bunny.obj';
     const drawingInfo = await readOBJFile(objFilename, 1, true);
 
     const buffers = build_bsp_tree(drawingInfo, device, new Object());
@@ -44,19 +44,6 @@ async function main() {
 
     animate();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 // Configure the canvas context
