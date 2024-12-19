@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>W9P3</title>
+    <h1>W9P3</h1>
+    <link rel="stylesheet" type="text/css" href="../styles.css" />
+  </head>
+  <body>
+    <script type="text/javascript" src="../common/MV.js"></script>
+    <script
+      type="text/javascript"
+      src="../common/BspTree_interleaved.js"
+    ></script>
+    <script type="text/javascript" src="../common/Aabb.js"></script>
+    <script
+      type="text/javascript"
+      src="../common/OBJParser_interleaved.js"
+    ></script>
+    <script type="text/javascript" src="../common/hdrpng.min.js"></script>
+    <script type="text/javascript" src="p3.js"></script>
+
+    <div style="align-items: flex-start">
+      <canvas id="webgpu-canvas" width="512" height="512"> </canvas>
+      <menu>
+        <input type="submit" value="Run/Stop" id="run" />
+        <div id="framecount"></div>
+        <div>
+          <h4>Shader</h4>
+          <input type="radio" id="gloss2" name="glossy" value="2" />
+          <label for="gloss1">Mirror</label>
+
+          <input
+            type="radio"
+            id="gloss1"
+            checked="true"
+            name="glossy"
+            value="1"
+          />
+          <label for="gloss2">Diffuse</label>
+
+          <input type="radio" id="gloss0" name="glossy" value="0" />
+          <label for="gloss3">Plain Color</label>
+        </div>
+      </menu>
+    </div>
+  </body>
+</html>
