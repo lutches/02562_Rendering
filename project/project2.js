@@ -220,7 +220,7 @@ async function main() {
 
   // Update frames at a set interval
   setInterval(() => {
-    if (frame_num < 50000) {
+    if (frame_num < 100000) {
       requestAnimationFrame(animate);
     }
   }, 1);
